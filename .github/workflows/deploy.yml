@@ -1,0 +1,37 @@
+name: Deploy Email-Service to GCP
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        run: |
+          # Builds the image and tags it for the registry
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/northstar-email:latest .
+          docker push ${{ secrets.DOCKER_USERNAME }}/northstar-email:latest
+
+      - name: SSH and Update Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_IP }}
+          username: sagaradavian
+          key: ${{ secrets.GCP_SSH_KEY }}
+          script: |
+            cd ~/northstar
+            # Pulls the fresh image and restarts the email service
+            docker compose pull email-service
+            docker compose up -d email-service
+            docker image prune -f
